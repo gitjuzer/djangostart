@@ -48,5 +48,52 @@ urlpatterns = [
 #######################
 
 python manage.py runserver
+# check browser: http://127.0.0.1:8000/
+# it works
+
+python manage.py migrate
+
+# put into polls/models.py
+#######################
+class Question(models.Model):
+    question_text = models.CharField(max_length=200)
+    pub_date = models.DateTimeField('date published')
+
+
+class Choice(models.Model):
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    choice_text = models.CharField(max_length=200)
+    votes = models.IntegerField(default=0)
+#######################
+
+# put into simplesite/settings.py INSTALLED_APPS:
+    'polls.apps.PollsConfig',
+
+python manage.py makemigrations polls
+
+python manage.py sqlmigrate polls 0001
+
+python manage.py migrate
+
+
+# to polls/models.py:
+import datetime
+from django.utils import timezone
+
+# to class Question:
+
+    def was_published_recently(self):
+        return self.pub_date >= timezone.now() - datetime.timedelta(days=1)
+
+
+# create admin user:
+python manage.py createsuperuser
+
+
+# to polls/admin.py :
+from .models import Question
+
+admin.site.register(Question)
+
 
 
