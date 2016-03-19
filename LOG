@@ -58,12 +58,15 @@ python manage.py migrate
 class Question(models.Model):
     question_text = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published')
-
+    def __str__(self):
+        return self.question_text
 
 class Choice(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     choice_text = models.CharField(max_length=200)
     votes = models.IntegerField(default=0)
+    def __str__(self):
+        return self.choice_text
 #######################
 
 # put into simplesite/settings.py INSTALLED_APPS:
@@ -91,9 +94,230 @@ python manage.py createsuperuser
 
 
 # to polls/admin.py :
-from .models import Question
+from .models import Question, Choice
 
 admin.site.register(Question)
+admin.site.register(Choice)
+                                                                                                                                    
+
+# to polls/views.py :
+def detail(request, question_id):
+    return HttpResponse("You're looking at question %s." % question_id)
+
+def results(request, question_id):
+    response = "You're looking at the results of question %s."
+    return HttpResponse(response % question_id)
+
+def vote(request, question_id):
+    return HttpResponse("You're voting on question %s." % question_id)
+
+# to polls/urls.py
+urlpatterns = [
+    # ex: /polls/
+    url(r'^$', views.index, name='index'),
+    # ex: /polls/5/
+    url(r'^(?P<question_id>[0-9]+)/$', views.detail, name='detail'),
+    # ex: /polls/5/results/
+    url(r'^(?P<question_id>[0-9]+)/results/$', views.results, name='results'),
+    # ex: /polls/5/vote/
+    url(r'^(?P<question_id>[0-9]+)/vote/$', views.vote, name='vote'),
+]
+
+# to polls/views.py :
+# remove old index
+from .models import Question
+
+def index(request):
+    latest_question_list = Question.objects.order_by('-pub_date')[:5]
+    output = ', '.join([q.question_text for q in latest_question_list])
+    return HttpResponse(output)
+
+# create polls/templates/polls/index.html :
+{% if latest_question_list %}
+    <ul>
+    {% for question in latest_question_list %}
+        <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No polls are available.</p>
+{% endif %}
+
+# change index in polls/views.py :
+def index(request):
+    latest_question_list = Question.objects.order_by('-pub_date')[:5]
+    context = {
+        'latest_question_list': latest_question_list,
+    }
+    return render(request, 'polls/index.html', context)
+
+# create polls/templates/polls/detail.html
+{{ question }}
+
+# update detail in polls/views.py
+def detail(request, question_id):
+    try:
+        question = Question.objects.get(pk=question_id)
+    except Question.DoesNotExist:
+        raise Http404("Question does not exist")
+    return render(request, 'polls/detail.html', {'question': question})
+
+# we can shortcut in polls/views.py
+from django.shortcuts import get_object_or_404
+def detail(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    return render(request, 'polls/detail.html', {'question': question})
+
+# update polls/templates/polls/detail.html :
+<h1>{{ question.question_text }}</h1>
+<ul>
+{% for choice in question.choice_set.all %}
+    <li>{{ choice.choice_text }}</li>
+{% endfor %}
+</ul>
+
+
+# manage data
+python manage.py shell
+
+from polls.models import Question, Choice
+q=Question.objects.get(pk=1)
+q.choice_set.create(choice_text='Jól', votes=0)
+q.choice_set.create(choice_text='Nem jól', votes=0)
+q.choice_set.all()
+q.save()
+
+
+
+# update polls/templates/polls/detail.html :
+<h1>{{ question.question_text }}</h1>
+
+{% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
+
+<form action="{% url 'polls:vote' question.id %}" method="post">
+{% csrf_token %}
+{% for choice in question.choice_set.all %}
+    <input type="radio" name="choice" id="choice{{ forloop.counter }}" value="{{ choice.id }}" />
+    <label for="choice{{ forloop.counter }}">{{ choice.choice_text }}</label><br />
+{% endfor %}
+<input type="submit" value="Vote" />
+</form>
+
+
+
+# update detail in polls/urls.py
+    url(r'^specifics/(?P<question_id>[0-9]+)/$', views.detail, name='detail'),
+
+# polls/urls.py :
+from django.conf.urls import url
+
+from . import views
+
+app_name = 'polls'
+urlpatterns = [
+    url(r'^$', views.index, name='index'),
+    url(r'^(?P<question_id>[0-9]+)/$', views.detail, name='detail'),
+    url(r'^(?P<question_id>[0-9]+)/results/$', views.results, name='results'),
+    url(r'^(?P<question_id>[0-9]+)/vote/$', views.vote, name='vote'),
+]
+
+
+# in polls index template update:
+<li><a href="{% url 'polls:detail' question.id %}">{{ question.question_text }}</a></li>
+
+
+# update polls/views.py
+# import:
+from django.http import HttpResponseRedirect, HttpResponse
+from django.core.urlresolvers import reverse
+
+# vote:
+def vote(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    try:
+        selected_choice = question.choice_set.get(pk=request.POST['choice'])
+    except (KeyError, Choice.DoesNotExist):
+        # Redisplay the question voting form.
+        return render(request, 'polls/detail.html', {
+            'question': question,
+            'error_message': "You didn't select a choice.",
+        })
+    else:
+        selected_choice.votes += 1
+        selected_choice.save()
+        # Always return an HttpResponseRedirect after successfully dealing
+        # with POST data. This prevents data from being posted twice if a
+        # user hits the Back button.
+        return HttpResponseRedirect(reverse('polls:results', args=(question.id,)))
+
+# update results as well
+def results(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    return render(request, 'polls/results.html', {'question': question})
+
+
+# update polls/urls.py
+from django.conf.urls import url
+
+from . import views
+
+app_name = 'polls'
+urlpatterns = [
+    url(r'^$', views.IndexView.as_view(), name='index'),
+    url(r'^(?P<pk>[0-9]+)/$', views.DetailView.as_view(), name='detail'),
+    url(r'^(?P<pk>[0-9]+)/results/$', views.ResultsView.as_view(), name='results'),
+    url(r'^(?P<question_id>[0-9]+)/vote/$', views.vote, name='vote'),
+]
+
+# create home
+# put into simplesite/urls.py
+    import
+...
+    url(r'^$', 'home.views.index'), 
+
+# create simplesite/views.py
+from django.shortcuts import render_to_response
+from django.template import RequestContext
+ 
+def index(request):
+    return render_to_response('home/index.html', context_instance=RequestContext(request))
+
+
+# update home/models.py
+import datetime
+from django.db import models
+from django.utils import timezone
+
+# Create your models here.
+
+class Content(models.Model):
+    content_text = models.CharField(max_length=2000)
+    pub_date = models.DateTimeField('date published')
+    def was_published_recently(self):
+        return self.pub_date >= timezone.now() - datetime.timedelta(days=1)
+
+
+#put into home/admin.py 
+from .models import Content
+
+admin.site.register(Content)
+
+# home/models.py:
+import datetime
+from django.db import models
+from django.utils import timezone
+
+# Create your models here.
+
+class Content(models.Model):
+    content_text = models.CharField(max_length=2000)
+    pub_date = models.DateTimeField('date published')
+    def was_published_recently(self):
+        return self.pub_date >= timezone.now() - datetime.timedelta(days=1)
+
+python manage.py makemigrations
+python manage.py migrate
+python manage.py runserver
 
 
 
