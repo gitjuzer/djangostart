@@ -1,0 +1,52 @@
+
+django-admin startproject simplesite
+
+cd simplesite
+
+#test site
+python manage.py runserver
+#if we want to allow remote connections:
+#python manage.py runserver 0.0.0.0:8000
+
+#browser: http://127.0.0.1:8000/
+#it works
+
+#polls app
+python manage.py startapp polls
+
+#insert into polls/view.py:
+#######################
+from django.http import HttpResponse
+
+
+def index(request):
+    return HttpResponse("Hello, world. You're at the polls index.")
+#######################
+
+#create polls/urls.py with following content:
+#######################
+from django.conf.urls import url
+
+from . import views
+
+urlpatterns = [
+    url(r'^$', views.index, name='index'),
+]
+#######################
+
+# modify simplesite/urls.py:
+# add import include
+# add polls
+#######################
+from django.conf.urls import include, url
+from django.contrib import admin
+
+urlpatterns = [
+    url(r'^polls/', include('polls.urls')),
+    url(r'^admin/', admin.site.urls),
+]
+#######################
+
+python manage.py runserver
+
+
